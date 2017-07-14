@@ -23,10 +23,10 @@ def createBlob(data):
     # These imports need to be done here to avoid errors due to circular
     # between this module and specific blob modules like apprelease.
     from auslib.blobs.apprelease import ReleaseBlobV1, ReleaseBlobV2, ReleaseBlobV3, \
-        ReleaseBlobV4, ReleaseBlobV5, DesupportBlob
+        ReleaseBlobV4, ReleaseBlobV5, ReleaseBlobV6, ReleaseBlobV7, DesupportBlob
     from auslib.blobs.gmp import GMPBlobV1
-    from auslib.blobs.settings import SettingsBlob
-    from auslib.blobs.whitelist import WhitelistBlobV1
+    from auslib.blobs.superblob import SuperBlob
+    from auslib.blobs.systemaddons import SystemAddonsBlob
 
     blob_map = {
         1: ReleaseBlobV1,
@@ -34,10 +34,12 @@ def createBlob(data):
         3: ReleaseBlobV3,
         4: ReleaseBlobV4,
         5: ReleaseBlobV5,
+        6: ReleaseBlobV6,
+        7: ReleaseBlobV7,
         50: DesupportBlob,
         1000: GMPBlobV1,
-        2000: SettingsBlob,
-        3000: WhitelistBlobV1
+        4000: SuperBlob,
+        5000: SystemAddonsBlob
     }
 
     if isinstance(data, basestring):
@@ -65,7 +67,7 @@ class Blob(dict):
         logger_name = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
         self.__class__.log = logging.getLogger(logger_name)
 
-    def validate(self):
+    def validate(self, product, whitelistedDomains):
         """Raises a BlobValidationError if the blob is invalid."""
         self.log.debug('Validating blob %s' % self)
         validator = jsonschema.Draft4Validator(self.getSchema())
@@ -77,6 +79,23 @@ class Blob(dict):
         errors = [e.message for e in validator.iter_errors(self)]
         if errors:
             raise BlobValidationError("Invalid blob! See 'errors' for details.", errors)
+
+        if self.containsForbiddenDomain(product, whitelistedDomains):
+            raise ValueError("Blob contains forbidden domain(s)")
+
+    def getResponseProducts(self):
+        """
+        :return: Usually returns None. If the Blob is a SuperBlob, it returns the list
+                of return products.
+        """
+        return None
+
+    def getResponseBlobs(self):
+        """
+        :return: Usually returns None. It the Blob is a systemaddons superblob, it returns the
+                 list of return blobs
+        """
+        return None
 
     def getSchema(self):
         def loadSchema():
@@ -107,3 +126,43 @@ class Blob(dict):
             else:
                 url += '?force=1'
         return url
+
+    def getInnerHeaderXML(self, updateQuery, update_type, whitelistedDomains, specialForceHosts):
+        """
+        :return: Releases-specific header should be implemented for individual blobs
+        """
+        raise NotImplementedError()
+
+    def getInnerFooterXML(self, updateQuery, update_type, whitelistedDomains, specialForceHosts):
+        """
+        :return: Releases-specific header should be implemented for individual blobs
+        """
+        raise NotImplementedError()
+
+    def getInnerXML(self, updateQuery, update_type, whitelistedDomains, specialForceHosts):
+        raise NotImplementedError()
+
+    def containsForbiddenDomain(self, product, whitelistedDomains):
+        raise NotImplementedError()
+
+    def getHeaderXML(self):
+        """
+        :return: Returns the outer most header. Returns the outer most header
+        """
+        header = ['<?xml version="1.0"?>']
+        header.append('<updates>')
+        return header
+
+    def getFooterXML(self):
+        """
+        :return: Returns the outer most footer. Returns the outer most header
+        """
+        footer = '</updates>'
+        return footer
+
+    def getReferencedReleases(self):
+        """
+        :return: Returns set of names of partially referenced releases that the current
+        release references
+        """
+        return set()

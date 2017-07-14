@@ -9,7 +9,8 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, "requirements.txt")) as f:
     requirements = []
     for line in f:
-        if "hash" not in line:
+        # Skip lines with hash values
+        if not line.strip().startswith("--"):
             requirements.append(line.split()[0])
 
 with open(path.join(here, "version.txt")) as f:

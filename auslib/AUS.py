@@ -15,10 +15,15 @@ def isSpecialURL(url, specialForceHosts):
     return False
 
 
-def isForbiddenUrl(url, whitelistedDomains):
+def isForbiddenUrl(url, product, whitelistedDomains):
+    if whitelistedDomains is None:
+        whitelistedDomains = []
     domain = urlparse(url)[1]
     if domain not in whitelistedDomains:
         logging.warning("Forbidden domain: %s", domain)
+        return True
+    if product not in whitelistedDomains[domain]:
+        logging.warning("Forbidden domain for product %s: %s", product, domain)
         return True
     return False
 
@@ -79,7 +84,16 @@ class AUS:
         if not updateQuery['force'] and rule['backgroundRate'] < 100:
             self.log.debug("backgroundRate < 100, rolling the dice")
             if self.rand.getInt() >= rule['backgroundRate']:
-                self.log.debug("request was dropped")
+                fallbackReleaseName = rule['fallbackMapping']
+                if fallbackReleaseName:
+                    release = dbo.releases.getReleases(name=fallbackReleaseName, limit=1)[0]
+                    blob = release['data']
+                    if not blob.shouldServeUpdate(updateQuery):
+                        return None, None
+                    self.log.debug("Returning fallback release %s", release['name'])
+                    return blob, rule['update_type']
+
+                self.log.debug("No fallback releases. Request was dropped")
                 return None, None
 
         # 3) Incoming release is older than the one in the mapping, defined as one of:

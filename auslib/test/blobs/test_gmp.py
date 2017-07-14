@@ -1,5 +1,4 @@
 import unittest
-from xml.dom import minidom
 
 from auslib.blobs.gmp import GMPBlobV1
 from auslib.errors import BadDataError
@@ -10,7 +9,7 @@ class TestSchema1Blob(unittest.TestCase):
 
     def setUp(self):
         self.specialForceHosts = ["http://a.com"]
-        self.whitelistedDomains = ["a.com", "boring.com"]
+        self.whitelistedDomains = {"a.com": ('gg',), 'boring.com': ('gg',)}
         self.blob = GMPBlobV1()
         self.blob.loadJSON("""
 {
@@ -60,6 +59,31 @@ class TestSchema1Blob(unittest.TestCase):
 }
 """)
 
+    def testValidateHashLength(self):
+        blob = GMPBlobV1()
+        blob.whitelistedDomains = {'boring.com': ('gg',), }
+        blob.loadJSON("""
+{
+    "name": "validName",
+    "schema_version": 1000,
+    "hashFunction": "SHA512",
+    "vendors": {
+        "a": {
+            "version": "5",
+            "platforms": {
+                "default": {
+                    "filesize": 20,
+                    "hashValue": "50",
+                    "fileUrl": "http://boring.com/bar"
+                }
+            }
+        }
+    }
+}
+""")
+        self.assertRaisesRegexp(ValueError, ("The hashValue length is different from the required length of 128 for sha512"),
+                                blob.validate, 'gg', self.whitelistedDomains)
+
     def testGetVendorsForPlatform(self):
         vendors = set([v for v in self.blob.getVendorsForPlatform("q")])
         self.assertEquals(set(["c", "d"]), vendors)
@@ -106,17 +130,21 @@ class TestSchema1Blob(unittest.TestCase):
             "osVersion": "a", "distribution": "a", "distVersion": "a",
             "force": 0
         }
-        returned = self.blob.createXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
-        returned = minidom.parseString(returned)
-        expected = minidom.parseString("""<?xml version="1.0"?>
-<updates>
-    <addons>
-        <addon id="c" URL="http://a.com/blah" hashFunction="SHA512" hashValue="3" size="2" version="1"/>
-        <addon id="d" URL="http://boring.com/bar" hashFunction="SHA512" hashValue="50" size="20" version="5"/>
-    </addons>
-</updates>
-""")
-        self.assertEqual(returned.toxml(), expected.toxml())
+        returned_header = self.blob.getInnerHeaderXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned = self.blob.getInnerXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned_footer = self.blob.getInnerFooterXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned = [x.strip() for x in returned]
+        expected_header = "<addons>"
+        expected = ["""
+<addon id="c" URL="http://a.com/blah" hashFunction="SHA512" hashValue="3" size="2" version="1"/>
+""", """
+<addon id="d" URL="http://boring.com/bar" hashFunction="SHA512" hashValue="50" size="20" version="5"/>
+"""]
+        expected = [x.strip() for x in expected]
+        expected_footer = "</addons>"
+        self.assertEqual(returned_header.strip(), expected_header.strip())
+        self.assertItemsEqual(returned, expected)
+        self.assertEqual(returned_footer.strip(), expected_footer.strip())
 
     def testGMPUpdateWithAlias(self):
         updateQuery = {
@@ -125,17 +153,21 @@ class TestSchema1Blob(unittest.TestCase):
             "osVersion": "a", "distribution": "a", "distVersion": "a",
             "force": 0
         }
-        returned = self.blob.createXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
-        returned = minidom.parseString(returned)
-        expected = minidom.parseString("""<?xml version="1.0"?>
-<updates>
-    <addons>
-        <addon id="c" URL="http://boring.com/blah" hashFunction="SHA512" hashValue="5" size="4" version="1"/>
-        <addon id="d" URL="http://boring.com/bar" hashFunction="SHA512" hashValue="50" size="20" version="5"/>
-    </addons>
-</updates>
-""")
-        self.assertEqual(returned.toxml(), expected.toxml())
+        returned_header = self.blob.getInnerHeaderXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned = self.blob.getInnerXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned_footer = self.blob.getInnerFooterXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned = [x.strip() for x in returned]
+        expected_header = "<addons>"
+        expected = ["""
+<addon id="c" URL="http://boring.com/blah" hashFunction="SHA512" hashValue="5" size="4" version="1"/>
+""", """
+<addon id="d" URL="http://boring.com/bar" hashFunction="SHA512" hashValue="50" size="20" version="5"/>
+"""]
+        expected = [x.strip() for x in expected]
+        expected_footer = "</addons>"
+        self.assertEqual(returned_header.strip(), expected_header.strip())
+        self.assertItemsEqual(returned, expected)
+        self.assertEqual(returned_footer.strip(), expected_footer.strip())
 
     def testGMPUpdateSingleAddons(self):
         updateQuery = {
@@ -144,16 +176,19 @@ class TestSchema1Blob(unittest.TestCase):
             "osVersion": "a", "distribution": "a", "distVersion": "a",
             "force": 0
         }
-        returned = self.blob.createXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
-        returned = minidom.parseString(returned)
-        expected = minidom.parseString("""<?xml version="1.0"?>
-<updates>
-    <addons>
-        <addon id="d" URL="http://boring.com/bar" hashFunction="SHA512" hashValue="50" size="20" version="5"/>
-    </addons>
-</updates>
-""")
-        self.assertEqual(returned.toxml(), expected.toxml())
+        returned_header = self.blob.getInnerHeaderXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned = self.blob.getInnerXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned_footer = self.blob.getInnerFooterXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned = [x.strip() for x in returned]
+        expected_header = "<addons>"
+        expected = ["""
+<addon id="d" URL="http://boring.com/bar" hashFunction="SHA512" hashValue="50" size="20" version="5"/>
+"""]
+        expected = [x.strip() for x in expected]
+        expected_footer = "</addons>"
+        self.assertEqual(returned_header.strip(), expected_header.strip())
+        self.assertItemsEqual(returned, expected)
+        self.assertEqual(returned_footer.strip(), expected_footer.strip())
 
     def testGMPUpdateMultipleAddons(self):
         updateQuery = {
@@ -162,17 +197,21 @@ class TestSchema1Blob(unittest.TestCase):
             "osVersion": "a", "distribution": "a", "distVersion": "a",
             "force": 0
         }
-        returned = self.blob.createXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
-        returned = minidom.parseString(returned)
-        expected = minidom.parseString("""<?xml version="1.0"?>
-<updates>
-    <addons>
-        <addon id="c" URL="http://boring.com/blah" hashFunction="SHA512" hashValue="5" size="4" version="1"/>
-        <addon id="d" URL="http://boring.com/foo" hashFunction="SHA512" hashValue="11" size="10" version="5"/>
-    </addons>
-</updates>
-""")
-        self.assertEqual(returned.toxml(), expected.toxml())
+        returned_header = self.blob.getInnerHeaderXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned = self.blob.getInnerXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned_footer = self.blob.getInnerFooterXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned = [x.strip() for x in returned]
+        expected_header = "<addons>"
+        expected = ["""
+<addon id="c" URL="http://boring.com/blah" hashFunction="SHA512" hashValue="5" size="4" version="1"/>
+""", """
+<addon id="d" URL="http://boring.com/foo" hashFunction="SHA512" hashValue="11" size="10" version="5"/>
+"""]
+        expected = [x.strip() for x in expected]
+        expected_footer = "</addons>"
+        self.assertEqual(returned_header.strip(), expected_header.strip())
+        self.assertItemsEqual(returned, expected)
+        self.assertEqual(returned_footer.strip(), expected_footer.strip())
 
     def testGMPWithForbiddenDomain(self):
         updateQuery = {
@@ -181,6 +220,227 @@ class TestSchema1Blob(unittest.TestCase):
             "osVersion": "a", "distribution": "a", "distVersion": "a",
             "force": 0
         }
-        returned = self.blob.createXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
-        returned = minidom.parseString(returned)
-        self.assertEqual(returned.getElementsByTagName('updates')[0].firstChild.nodeValue, '\n')
+        returned_header = self.blob.getInnerHeaderXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned = self.blob.getInnerXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned_footer = self.blob.getInnerFooterXML(updateQuery, "minor", self.whitelistedDomains, self.specialForceHosts)
+        returned = [x.strip() for x in returned]
+        expected_header = "<addons>"
+        expected = []
+        expected = [x.strip() for x in expected]
+        expected_footer = "</addons>"
+        self.assertEqual(returned_header.strip(), expected_header.strip())
+        self.assertItemsEqual(returned, expected)
+        self.assertEqual(returned_footer.strip(), expected_footer.strip())
+
+    def testContainsForbiddenDomain(self):
+        blob = GMPBlobV1()
+        blob.loadJSON("""
+{
+    "name": "fake",
+    "schema_version": 1000,
+    "hashFunction": "SHA512",
+    "vendors": {
+        "c": {
+            "version": "1",
+            "platforms": {
+                "p": {
+                    "filesize": 2,
+                    "hashValue": "3",
+                    "fileUrl": "http://evil.com/blah"
+                }
+            }
+        }
+    }
+}
+""")
+        self.assertTrue(blob.containsForbiddenDomain('gg',
+                                                     self.whitelistedDomains))
+
+    def testDoesNotContainForbiddenDomain(self):
+        blob = GMPBlobV1()
+        blob.loadJSON("""
+{
+    "name": "fake",
+    "schema_version": 1000,
+    "hashFunction": "SHA512",
+    "vendors": {
+        "c": {
+            "version": "1",
+            "platforms": {
+                "p": {
+                    "filesize": 2,
+                    "hashValue": "3",
+                    "fileUrl": "http://a.com/blah"
+                }
+            }
+        }
+    }
+}
+""")
+        self.assertFalse(blob.containsForbiddenDomain('gg',
+                                                      self.whitelistedDomains))
+
+    def testGMPLayoutEmptyVendor(self):
+
+        # Correct layout with empty vendors
+
+        blob = GMPBlobV1()
+        blob.loadJSON("""
+    {
+        "name": "fake",
+        "schema_version": 1000,
+        "hashFunction": "SHA512",
+        "vendors": {}
+    }
+    """)
+        blob.validate('gg', self.whitelistedDomains)
+
+    def testGMPLayoutNoVendor(self):
+
+        # Incorrect layout with no vendors
+
+        blob = GMPBlobV1()
+        blob.loadJSON("""
+    {
+        "name": "fake",
+        "schema_version": 1000,
+        "hashFunction": "SHA512"
+    }
+    """)
+        self.assertRaises(Exception, blob.validate, 'gg', self.whitelistedDomains)
+
+    def testGMPLayoutTwoPlatforms(self):
+
+        # Correct layout with one vendor and two platforms
+
+        blob = GMPBlobV1()
+        blob.loadJSON("""
+    {
+        "name": "fake",
+        "schema_version": 1000,
+        "hashFunction": "SHA512",
+        "vendors": {
+            "c": {
+                "version": "1",
+                "platforms": {
+                    "p": {
+                        "alias": "q"
+                    },
+                    "q": {
+                        "filesize": 2,
+                        "hashValue": "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcda\
+bcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
+                        "fileUrl": "http://boring.com/blah"
+                    }
+                }
+            }
+        }
+    }
+    """)
+        blob.validate('gg', self.whitelistedDomains)
+
+    def testGMPLayoutMissingVersion(self):
+
+        # Incorrect layout with missing version for an vendor name
+
+        blob = GMPBlobV1()
+        blob.loadJSON("""
+    {
+        "name": "fake",
+        "schema_version": 1000,
+        "hashFunction": "SHA512",
+        "vendors": {
+            "c": {
+                "platforms": {
+                    "p": {
+                        "alias": "q"
+                    },
+                    "q": {
+                        "filesize": 2,
+                        "hashValue": "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcda\
+bcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
+                        "fileUrl": "http://boring.com/blah"
+                    }
+                }
+            }
+        }
+    }
+    """)
+        self.assertRaises(Exception, blob.validate, 'gg', self.whitelistedDomains)
+
+    def testGMPLayoutEmptyPlatforms(self):
+
+        # Correct layout with empty platforms
+
+        blob = GMPBlobV1()
+        blob.loadJSON("""
+    {
+        "name": "fake",
+        "schema_version": 1000,
+        "hashFunction": "SHA512",
+        "vendors": {
+            "c": {
+                "version": "1",
+                "platforms": {}
+            }
+        }
+    }
+    """)
+        blob.validate('gg', self.whitelistedDomains)
+
+    def testGMPLayoutEmptyPlatformName(self):
+
+        # Incorrect layout with empty platform name
+
+        blob = GMPBlobV1()
+        blob.loadJSON("""
+    {
+        "name": "fake",
+        "schema_version": 1000,
+        "hashFunction": "SHA512",
+        "vendors": {
+            "c": {
+                "version": "1",
+                "platforms": {
+                    "p": {},
+                    "q": {
+                        "filesize": 2,
+                        "hashValue": "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcda\
+bcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
+                        "fileUrl": "http://boring.com/blah"
+                    }
+                }
+            }
+        }
+    }
+    """)
+        self.assertRaises(Exception, blob.validate, 'gg', self.whitelistedDomains)
+
+    def testGMPLayoutNoFilesize(self):
+
+        # Incorrect layout with missing filesize
+
+        blob = GMPBlobV1()
+        blob.loadJSON("""
+    {
+        "name": "fake",
+        "schema_version": 1000,
+        "hashFunction": "SHA512",
+        "vendors": {
+            "c": {
+                "version": "1",
+                "platforms": {
+                    "p": {
+                        "alias": "q"
+                    },
+                    "q": {
+                        "hashValue": "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcda\
+bcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
+                        "fileUrl": "http://boring.com/blah"
+                    }
+                }
+            }
+        }
+    }
+    """)
+        self.assertRaises(Exception, blob.validate, 'gg', self.whitelistedDomains)

@@ -9,27 +9,32 @@ class TestHistoryView(ViewTest):
     def testFieldViewBadValuesBadTable(self):
         url = '/history/view/notatable/1/whatever'
         ret = self.client.get(url)
-        self.assertStatusCode(ret, 400)
-        self.assertTrue('Bad table' in ret.data)
+        self.assertStatusCode(ret, 404)
 
     def testFieldViewBadValuesBadChangeId(self):
-        url = '/history/view/permission/9999/whatever'
+        url = '/history/view/release/9999/whatever'
         ret = self.client.get(url)
         self.assertStatusCode(ret, 404)
-        self.assertTrue('Bad change_id' in ret.data)
 
-    def testFieldViewBadValuesBadField(self):
-        ret = self._put('/users/bob/permissions/admin')
-        self.assertStatusCode(ret, 201)
+    def testFieldViewCheckIntegerValue(self):
+        data = json.dumps(dict(detailsUrl='InbhalInt', fakePartials=True, schema_version=1, name="d", hashFunction="sha512"))
+        ret = self._post(
+            '/releases/d',
+            data=dict(data=data, product='d', data_version=1)
+        )
+        self.assertStatusCode(ret, 200)
 
-        table = dbo.permissions.history
-        row, = table.select(order_by=[table.change_id.desc()], limit=1)
+        table = dbo.releases.history
+        query = table.t.count()
+        count, = query.execute().first()
+        self.assertEqual(count, 1)
+
+        row, = table.select()
         change_id = row['change_id']
 
-        url = '/history/view/permission/%d/notafield' % change_id
+        url = '/history/view/release/%d/data_version' % change_id
         ret = self.client.get(url)
-        self.assertStatusCode(ret, 400)
-        self.assertTrue('Bad field' in ret.data)
+        self.assertStatusCode(ret, 200)
 
     def testFieldViewRelease(self):
         # add a release
@@ -90,6 +95,41 @@ class TestHistoryView(ViewTest):
         self.assertStatusCode(ret, 200)
         self.assertTrue('"fakePartials": true' in ret.data)
         self.assertTrue('"fakePartials": false' in ret.data)
+
+    def testFieldViewDiffFirstRelease(self):
+        # Add first release
+        blob = """
+        {
+            "name": "ddd1",
+            "schema_version": 1,
+            "detailsUrl": "blah",
+            "fakePartials": true,
+            "hashFunction": "sha512",
+            "platforms": {
+                "p": {
+                    "locales": {
+                        "dd": {
+                            "complete": {
+                                "filesize": 1234,
+                                "from": "*",
+                                "hashValue": "abc"
+                            }
+                        }
+                    }
+                }
+            }
+        }"""
+
+        ret = self._put('/releases/ddd1', data=dict(blob=blob, name='ddd1',
+                        product='d', data_version=1))
+        self.assertStatusCode(ret, 201)
+        table = dbo.releases.history
+        row, = table.select(order_by=[table.change_id.asc()], limit=1)
+        change_id = row['change_id']
+
+        url = '/history/diff/release/%d/data' % change_id
+        ret = self.client.get(url)
+        self.assertStatusCode(ret, 200)
 
     def testFieldViewDiffRelease(self):
 
@@ -154,16 +194,3 @@ class TestHistoryView(ViewTest):
         self.assertFalse('"detailsUrl": "blahblahblah"' in ret.data)
         self.assertTrue('"fakePartials": true' in ret.data)
         self.assertTrue('"fakePartials": false' in ret.data)
-
-    def testFieldViewPermission(self):
-        # Add a permission
-        ret = self._put('/users/bob/permissions/admin')
-        self.assertStatusCode(ret, 201)
-        table = dbo.permissions.history
-        row, = table.select(order_by=[table.timestamp.desc()], limit=1)
-        change_id = row['change_id']
-
-        url = '/history/view/permission/%d/options' % change_id
-        ret = self.client.get(url)
-        self.assertStatusCode(ret, 200)
-        self.assertEqual(ret.data, 'NULL')
