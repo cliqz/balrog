@@ -4,7 +4,6 @@ export LOCAL_DUMP="/app/scripts/prod_db_dump.sql"
 
 if [ ! -e /app/.cache/mysql/db.done ]; then
     echo "Initializing DB..."
-    python scripts/manage-db.py -d mysql://balrogadmin:balrogadmin@balrogdb/balrog create
     python scripts/import-db.py
 
     if [ -e "$LOCAL_DUMP" ]; then
@@ -14,7 +13,6 @@ if [ ! -e /app/.cache/mysql/db.done ]; then
     fi
 
     eval "$db_source" | mysql -h balrogdb -u balrogadmin --password=balrogadmin balrog
-    mysql -h balrogdb -u balrogadmin --password=balrogadmin -e "insert into permissions (username, permission, data_version) values (\"balrogadmin\", \"admin\", 1)" balrog
     touch /app/.cache/mysql/db.done
     echo "Done"
 

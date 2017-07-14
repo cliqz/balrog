@@ -10,8 +10,8 @@ import time
 from urllib2 import urlopen, HTTPError, URLError
 
 
-HOST = 'https://balrog-public-dump-prod.s3.amazonaws.com'
-PATH = '/dump.sql.txt'
+HOST = 'https://s3.amazonaws.com'
+PATH = '/cdn.cliqz.com/balrog/dump.sql.txt'
 LOCAL_DB_PATH = os.getenv('LOCAL_DUMP', '/app/scripts/prod_db_dump.sql')
 TIMEOUT = 10
 
