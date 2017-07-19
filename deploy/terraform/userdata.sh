@@ -26,5 +26,6 @@ curl -L https://github.com/docker/compose/releases/download/1.14.0/docker-compos
 chmod +x /usr/local/bin/docker-compose
 
 cd /root/ && git clone https://github.com/cliqz/balrog && cd balrog
+git checkout cliqz_related && git pull
 
 /usr/local/bin/docker-compose up -d

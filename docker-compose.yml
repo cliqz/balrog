@@ -3,6 +3,14 @@
 # and seems to only occur with certain (older) versions of docker-compose.
 version: '2.1'
 services:
+  nginx:
+    image: 141047255820.dkr.ecr.us-east-1.amazonaws.com/balrog_nginx:latest
+    ports:
+      - "8000:8000"
+    links:
+      - balrogui
+      - balrogpub
+
   balrogadmin:
     build:
       context: .
@@ -14,8 +22,8 @@ services:
       - bash
       - scripts/initdb_and_run.sh
     command: admin-dev
-    expose:
-      - "7070"
+    ports:
+      - "7070:7070"
     volumes:
       - .:/app
     links:

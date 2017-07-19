@@ -58,7 +58,7 @@ resource "aws_elb" "balrog" {
   idle_timeout          = 1800
 
   listener {
-    instance_port       = 8080
+    instance_port       = 8000
     instance_protocol   = "http"
     lb_port             = 443
     lb_protocol         = "https"
@@ -69,7 +69,7 @@ resource "aws_elb" "balrog" {
     healthy_threshold   = 2
     unhealthy_threshold = 2
     timeout             = 3
-    target              = "HTTP:8080/"
+    target              = "HTTP:8000/"
     interval            = 30
   }
 
@@ -109,8 +109,8 @@ resource "aws_security_group" "balrog_sg" {
 	}
 
 	ingress {
-    from_port       = 8080
-  	to_port         = 8080
+    from_port       = 8000
+  	to_port         = 8000
   	protocol        = "tcp"
     security_groups = ["${aws_security_group.balrog_elb.id}"]
 	}
